@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atemschutz Fristen-Manager</title>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .card {
+            background-color: #1e293b;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+        }
+        h1, h2 {
+            margin-top: 0;
+        }
+        form {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        input {
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            color: white;
+            font-size: 0.875rem;
+        }
+        input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+        }
+        button {
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem 1.25rem;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        .btn-green { background-color: #16a34a; color: white; }
+        .btn-gray { background-color: #334155; color: white; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        th {
+            background-color: rgba(15, 23, 42, 0.5);
+            color: #94a3b8;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            padding: 1rem;
+            border-bottom: 1px solid #334155;
+        }
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid #334155;
+            font-size: 0.875rem;
+        }
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .status-msg {
+            background-color: rgba(37, 99, 235, 0.2);
+            border: 1px solid #2563eb;
+            color: #93c5fd;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h1>Atemschutz Fristen-Manager</h1>
+            <p style="color: #94a3b8; font-size: 0.875rem; margin: 0.25rem 0 0 0;">G26.3 Tauglichkeits-Übersicht (Google Sheets Sync)</p>
+        </div>
+        <div>
+            <button class="btn-gray" onclick="datenLaden()">🔄 Aktualisieren</button>
+        </div>
+    </div>
+
+    <div id="statusMeldung" class="status-msg"></div>
+
+    <!-- Hinzufügen -->
+    <div class="card">
+        <h2>Geräteträger hinzufügen</h2>
+        <form onsubmit="personHinzufuegen(event)">
+            <input type="text" id="nameInput" placeholder="Vollständiger Name" required>
+            <input type="date" id="datumInput" required>
+            <button type="submit" class="btn-green">Hinzufügen</button>
+        </form>
+    </div>
+
+    <!-- Tabelle -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #334155;">
+            <h2 style="margin: 0; font-size: 1.125rem;">Aktuelle Geräteträger & G26.3 Status</h2>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Ampel</th>
+                    <th>Name</th>
+                    <th>Ablaufdatum</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Aktion</th>
+                </tr>
+            </thead>
+            <tbody id="tabelleKoerper">
+                <tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 2rem;">Lade Daten aus Google Sheets...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzKV8Lj_JJF5ZAPhw_MHwq50c0rQAjhvLvTRLf3lLcT_Q1UGfa59x9Ho9DvRqapcms/exec";
+    let trägerListe = [];
+
+    function zeigeMeldung(text) {
+        const m = document.getElementById("statusMeldung");
+        m.innerText = text;
+        m.style.display = "block";
+        setTimeout(() => m.style.display = "none", 3000);
+    }
+
+    // Daten von Google Sheets laden
+    async function datenLaden() {
+        try {
+            const response = await fetch(SCRIPT_URL);
+            const data = await response.json();
+            trägerListe = data;
+            rendern();
+        } catch (error) {
+            console.error("Fehler beim Laden:", error);
+            zeigeMeldung("Fehler beim Laden der Google-Tabelle.");
+        }
+    }
+
+    // Daten an Google Sheets senden (Sync)
+    async function datenSpeichern() {
+        try {
+            await fetch(SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "sync", items: trägerListe })
+            });
+        } catch (error) {
+            console.error("Fehler beim Speichern:", error);
+        }
+    }
+
+    async function personHinzufuegen(e) {
+        e.preventDefault();
+        const name = document.getElementById("nameInput").value;
+        const datum = document.getElementById("datumInput").value;
+
+        if (!name || !datum) return;
+
+        trägerListe.push({
+            id: Date.now().toString(),
+            name: name,
+            ablaufDatum: datum
+        });
+
+        document.getElementById("nameInput").value = "";
+        document.getElementById("datumInput").value = "";
+        
+        rendern();
+        zeigeMeldung("Wird in Google Sheets gespeichert...");
+        await datenSpeichern();
+        zeigeMeldung("Erfolgreich gespeichert!");
+        datenLaden(); // Neu einlesen zur Bestätigung
+    }
+
+    async function personLoeschen(id) {
+        trägerListe = trägerListe.filter(t => t.id !== id);
+        rendern();
+        zeigeMeldung("Lösche Eintrag...");
+        await datenSpeichern();
+        zeigeMeldung("Eintrag gelöscht.");
+        datenLaden();
+    }
+
+    async function datumBearbeiten(id) {
+        const neuerWert = prompt("Neues Ablaufdatum eingeben (YYYY-MM-DD):");
+        if (!neuerWert) return;
+
+        const träger = trägerListe.find(t => t.id === id);
+        if (träger) {
+            träger.ablaufDatum = neuerWert;
+            rendern();
+            zeigeMeldung("Aktualisiere in Google Sheets...");
+            await datenSpeichern();
+            zeigeMeldung("Ablaufdatum aktualisiert!");
+            datenLaden();
+        }
+    }
+
+    function berechneStatus(datumStr) {
+        if (!datumStr) return { text: "Unbekannt", farbe: "#64748b", ampel: "⚪" };
+        
+        const heute = new Date();
+        heute.setHours(0, 0, 0, 0);
+        const ablauf = new Date(datumStr);
+        ablauf.setHours(0, 0, 0, 0);
+
+        const diffTage = Math.ceil((ablauf.getTime() - heute.getTime()) / (1000 * 60 * 60 * 24));
+        const diffMonate = diffTage / 30;
+
+        if (diffTage < 0) {
+            return { text: "Abgelaufen (Nicht tauglich)", farbe: "#ef4444", ampel: "🔴" };
+        } else if (diffMonate <= 3) {
+            return { text: `Kritisch (${diffTage} Tage)`, farbe: "#f97316", ampel: "🟠" };
+        } else if (diffMonate <= 6) {
+            return { text: `Bald fällig (${diffTage} Tage)`, farbe: "#facc15", ampel: "🟡" };
+        } else {
+            return { text: `Gültig (${diffTage} Tage)`, farbe: "#16a34a", ampel: "🟢" };
+        }
+    }
+
+    function rendern() {
+        const koerper = document.getElementById("tabelleKoerper");
+        koerper.innerHTML = "";
+
+        if (trägerListe.length === 0) {
+            koerper.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 2rem;">Noch keine Geräteträger eingetragen.</td></tr>`;
+            return;
+        }
+
+        // Sortieren nach Datum
+        trägerListe.sort((a, b) => new Date(a.ablaufDatum) - new Date(b.ablaufDatum));
+
+        trägerListe.forEach(träger => {
+            const status = berechneStatus(träger.ablaufDatum);
+            const datumFormatiert = träger.ablaufDatum ? new Date(träger.ablaufDatum).toLocaleDateString("de-DE") : "-";
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td style="font-size: 1.25rem;">${status.ampel}</td>
+                <td style="font-weight: 500;">${träger.name}</td>
+                <td style="color: #cbd5e1;">${datumFormatiert}</td>
+                <td><span class="badge" style="background-color: ${status.farbe};">${status.text}</span></td>
+                <td style="text-align: right;">
+                    <button onclick="datumBearbeiten('${träger.id}')" style="background:none; border:none; cursor:pointer; font-size:1rem;" title="Datum aktualisieren">✏️</button>
+                    <button onclick="personLoeschen('${träger.id}')" style="background:none; border:none; cursor:pointer; font-size:1rem;" title="Löschen">🗑️</button>
+                </td>
+            `;
+            koerper.appendChild(tr);
+        });
+    }
+
+    // Beim Starten einmalig Daten laden
+    datenLaden();
+</script>
+
+</body>
+</html>
